@@ -9,8 +9,9 @@ import { DateNavigator } from "@/components/features/date-navigator"
 import { FilterSidebar } from "@/components/features/filter-sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button } from "@/components/ui/button"
-import { AlertCircle, Filter } from "lucide-react"
+import { AlertCircle, Filter, CheckCircle2 } from "lucide-react"
 import { useState, useMemo, useEffect, Suspense } from "react"
+import { cn } from "@/lib/utils"
 import {
     Drawer,
     DrawerClose,
@@ -24,6 +25,7 @@ import {
 import { SortControls } from "@/components/features/sort-controls"
 import type { SortOption } from "@/components/features/sort-controls"
 import { parseDurationToMinutes } from "@/lib/utils"
+import { format, parseISO } from "date-fns"
 
 function SearchPageContent() {
     const searchParams = useSearchParams()
@@ -134,52 +136,105 @@ function SearchPageContent() {
         return sum / filteredFlights.length
     }, [filteredFlights])
 
+    // Mix-and-match State
+    const isRoundTrip = !!returnDate;
+    const [step, setStep] = useState<'outbound' | 'return'>('outbound');
+    const [selectedOutbound, setSelectedOutbound] = useState<any>(null);
+
+    // 1. Group by unique Outbound legs (same carrier, flight number, departure time)
+    const uniqueOutbounds = useMemo(() => {
+        if (!isRoundTrip || !data) return [];
+        const map = new Map();
+        filteredFlights.forEach(flight => {
+            const outItinerary = flight.itineraries[0];
+            const key = outItinerary.segments.map(s => `${s.carrierCode}${s.number}-${s.departure.at}`).join('_');
+
+            if (!map.has(key)) {
+                // Store the whole flight as a representative, but we also need the CHEAPEST price for this outbound
+                // Since we don't know the isolated price, we show "From <min_total_price>"
+                map.set(key, { ...flight, minPrice: parseFloat(flight.price.total) });
+            } else {
+                const existing = map.get(key);
+                if (parseFloat(flight.price.total) < existing.minPrice) {
+                    map.set(key, { ...flight, minPrice: parseFloat(flight.price.total) });
+                }
+            }
+        });
+        return Array.from(map.values()).sort((a, b) => a.minPrice - b.minPrice);
+    }, [filteredFlights, isRoundTrip, data]);
+
+    // 2. Get compatible Returns for selected outbound
+    const availableReturns = useMemo(() => {
+        if (!selectedOutbound || !data) return [];
+        const outKey = selectedOutbound.itineraries[0].segments.map((s: any) => `${s.carrierCode}${s.number}-${s.departure.at}`).join('_');
+
+        return filteredFlights.filter(f => {
+            const fKey = f.itineraries[0].segments.map((s: any) => `${s.carrierCode}${s.number}-${s.departure.at}`).join('_');
+            return fKey === outKey;
+        }).sort((a, b) => parseFloat(a.price.total) - parseFloat(b.price.total));
+    }, [filteredFlights, selectedOutbound, data]);
+
     return (
         <div className="min-h-screen bg-slate-50">
             {/* Header */}
-            <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-20 shadow-sm">
+            <header className="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-20 shadow-md">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
-                    <div>
+                    <div className="flex items-center gap-6">
                         <Link href="/">
-                            <h1 className="text-xl font-bold text-slate-900 cursor-pointer hover:text-indigo-600 transition-colors">Flight Search</h1>
+                            <h1 className="text-xl font-bold tracking-tight cursor-pointer hover:opacity-90 transition-opacity">
+                                <span className="text-red-500">Not</span> <span className="text-white">Google Flights</span>
+                            </h1>
                         </Link>
-                        <div className="text-sm text-slate-500">
-                            {origin} to {destination} • {date} • {adults} Passenger(s)
+
+                        <div className="hidden md:flex items-center space-x-2 text-sm text-slate-400 border-l border-slate-700 pl-6 h-6">
+                            <span className="font-medium text-slate-200">{origin}</span>
+                            <span>→</span>
+                            <span className="font-medium text-slate-200">{destination}</span>
+                            <span className="mx-2">•</span>
+                            <span>{date}</span>
+                            <span className="mx-2">•</span>
+                            <span>{adults} Pax</span>
                         </div>
                     </div>
 
-                    {/* Mobile Filter Trigger */}
-                    <div className="md:hidden">
-                        <Drawer>
-                            <DrawerTrigger asChild>
-                                <Button variant="outline" size="sm" className="gap-2">
-                                    <Filter className="h-4 w-4" /> Filters
-                                </Button>
-                            </DrawerTrigger>
-                            <DrawerContent>
-                                <DrawerHeader>
-                                    <DrawerTitle>Filters</DrawerTitle>
-                                    <DrawerDescription>Adjust your search criteria.</DrawerDescription>
-                                </DrawerHeader>
-                                <div className="p-4">
-                                    <FilterSidebar
-                                        maxPrice={maxPriceLimit}
-                                        priceRange={priceRange}
-                                        setPriceRange={setPriceRange}
-                                        stops={selectedStops}
-                                        setStops={setSelectedStops}
-                                        airlines={selectedAirlines}
-                                        setAirlines={setSelectedAirlines}
-                                        availableAirlines={availableAirlines}
-                                    />
-                                </div>
-                                <DrawerFooter>
-                                    <DrawerClose asChild>
-                                        <Button>Apply Filters</Button>
-                                    </DrawerClose>
-                                </DrawerFooter>
-                            </DrawerContent>
-                        </Drawer>
+                    {/* Mobile Summary & Filter Trigger */}
+                    <div className="flex items-center gap-4">
+                        <div className="md:hidden text-xs text-slate-400">
+                            {origin} → {destination}
+                        </div>
+
+                        <div className="md:hidden">
+                            <Drawer>
+                                <DrawerTrigger asChild>
+                                    <Button variant="outline" size="sm" className="gap-2 bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700 hover:text-white">
+                                        <Filter className="h-4 w-4" /> Filters
+                                    </Button>
+                                </DrawerTrigger>
+                                <DrawerContent>
+                                    <DrawerHeader>
+                                        <DrawerTitle>Filters</DrawerTitle>
+                                        <DrawerDescription>Adjust your search criteria.</DrawerDescription>
+                                    </DrawerHeader>
+                                    <div className="p-4">
+                                        <FilterSidebar
+                                            maxPrice={maxPriceLimit}
+                                            priceRange={priceRange}
+                                            setPriceRange={setPriceRange}
+                                            stops={selectedStops}
+                                            setStops={setSelectedStops}
+                                            airlines={selectedAirlines}
+                                            setAirlines={setSelectedAirlines}
+                                            availableAirlines={availableAirlines}
+                                        />
+                                    </div>
+                                    <DrawerFooter>
+                                        <DrawerClose asChild>
+                                            <Button>Apply Filters</Button>
+                                        </DrawerClose>
+                                    </DrawerFooter>
+                                </DrawerContent>
+                            </Drawer>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -247,13 +302,139 @@ function SearchPageContent() {
                                 <SortControls value={sortBy} onChange={setSortBy} />
                             </div>
 
-                            {filteredFlights.map((flight) => (
-                                <FlightCard
-                                    key={flight.id}
-                                    flight={flight}
-                                    dictionaries={data.dictionaries}
-                                />
-                            ))}
+                            {!isRoundTrip ? (
+                                // One-way rendering
+                                filteredFlights.map((flight) => (
+                                    <FlightCard
+                                        key={flight.id}
+                                        flight={flight}
+                                        dictionaries={data.dictionaries}
+                                    />
+                                ))
+                            ) : (
+                                // Round-trip mix-and-match rendering (Tabbed UI)
+                                <>
+                                    {/* Selection Tabs Header */}
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        {/* Outbound Tab */}
+                                        <div
+                                            onClick={() => setStep('outbound')}
+                                            className={cn(
+                                                "relative p-4 rounded-xl border-2 transition-all cursor-pointer hover:border-blue-300",
+                                                step === 'outbound'
+                                                    ? "bg-blue-50 border-blue-500 shadow-md ring-1 ring-blue-500"
+                                                    : "bg-white border-slate-200 hover:bg-slate-50"
+                                            )}
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className={cn(
+                                                    "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-md",
+                                                    step === 'outbound' ? "bg-blue-200 text-blue-800" : "bg-slate-100 text-slate-500"
+                                                )}>
+                                                    Outbound
+                                                </span>
+                                                {selectedOutbound && <span className="text-blue-600"><CheckCircle2 className="h-5 w-5" /></span>}
+                                            </div>
+
+                                            {selectedOutbound ? (
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="font-bold text-slate-900 text-lg">{format(parseISO(selectedOutbound.itineraries[0].segments[0].departure.at), "HH:mm")}</span>
+                                                        <span className="text-slate-400">→</span>
+                                                        <span className="font-bold text-slate-900 text-lg">{format(parseISO(selectedOutbound.itineraries[0].segments[selectedOutbound.itineraries[0].segments.length - 1].arrival.at), "HH:mm")}</span>
+                                                    </div>
+                                                    <p className="text-sm text-slate-600 font-medium">
+                                                        {data.dictionaries.carriers[selectedOutbound.itineraries[0].segments[0].carrierCode]} • {format(parseISO(selectedOutbound.itineraries[0].segments[0].departure.at), "EEE, d MMM")}
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className="py-2">
+                                                    <p className="text-slate-900 font-semibold">Select Flight</p>
+                                                    <p className="text-sm text-slate-500">{origin} to {destination}</p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Return Tab */}
+                                        <div
+                                            onClick={() => {
+                                                if (selectedOutbound) setStep('return');
+                                            }}
+                                            className={cn(
+                                                "relative p-4 rounded-xl border-2 transition-all",
+                                                !selectedOutbound ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-100" : "cursor-pointer hover:border-purple-300",
+                                                step === 'return'
+                                                    ? "bg-purple-50 border-purple-500 shadow-md ring-1 ring-purple-500"
+                                                    : "bg-white border-slate-200 hover:bg-slate-50"
+                                            )}
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className={cn(
+                                                    "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-md",
+                                                    step === 'return' ? "bg-purple-200 text-purple-800" : "bg-slate-100 text-slate-500"
+                                                )}>
+                                                    Return
+                                                </span>
+                                            </div>
+
+                                            {(!selectedOutbound && step !== 'return') ? (
+                                                <div className="py-2">
+                                                    <p className="text-slate-400 font-medium italic">Select outbound first</p>
+                                                </div>
+                                            ) : (
+                                                <div className="py-2">
+                                                    <p className="text-slate-900 font-semibold">Select Flight</p>
+                                                    <p className="text-sm text-slate-500">{destination} to {origin}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Flight List based on Step */}
+                                    {step === 'outbound' && (
+                                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                            {uniqueOutbounds.map(flight => (
+                                                <FlightCard
+                                                    key={flight.id}
+                                                    flight={flight}
+                                                    dictionaries={data.dictionaries}
+                                                    isMultiStep={true}
+                                                    step="outbound"
+                                                    onSelect={() => {
+                                                        setSelectedOutbound(flight);
+                                                        setStep('return');
+                                                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                    }}
+                                                    displayPrice={flight.minPrice}
+                                                />
+                                            ))}
+                                            {uniqueOutbounds.length === 0 && (
+                                                <p className="text-center text-slate-500 py-8">No outbound flights match your filters.</p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {step === 'return' && selectedOutbound && (
+                                        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                                            {availableReturns.map(flight => (
+                                                <FlightCard
+                                                    key={flight.id}
+                                                    flight={flight}
+                                                    dictionaries={data.dictionaries}
+                                                    isMultiStep={true}
+                                                    step="return"
+                                                    onSelect={() => {
+                                                        alert(`Flight Selected! Total: ${flight.price.total}`);
+                                                    }}
+                                                />
+                                            ))}
+                                            {availableReturns.length === 0 && (
+                                                <p className="text-center text-slate-500 py-8">No return flights available for selected outbound.</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            )}
 
                             {filteredFlights.length === 0 && (
                                 <div className="text-center py-12 bg-white rounded-xl border border-slate-100">

@@ -13,7 +13,7 @@ export default function Home() {
       <div className="relative z-10 w-full max-w-5xl space-y-8 text-center">
         <div className="space-y-4">
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white drop-shadow-sm">
-            Not Google <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Flights</span>
+            <span className="text-red-500">Not</span> Google Flights
           </h1>
           <p className="text-xl text-slate-300 max-w-2xl mx-auto">
             Experience the future of flight search. Immersive, fast, and beautiful.
