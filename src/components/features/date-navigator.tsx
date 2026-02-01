@@ -3,6 +3,7 @@
 import { format, addDays, subDays } from "date-fns"
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -20,6 +21,7 @@ export function DateNavigator({ dateString }: { dateString: string }) {
     // Parse the YYYY-MM-DD string as a local date
     const [year, month, day] = dateString.split('-').map(Number)
     const currentDate = new Date(year, month - 1, day)
+    const [isOpen, setIsOpen] = useState(false)
 
     const handleDateChange = (date: Date | undefined) => {
         if (!date) return
@@ -27,6 +29,7 @@ export function DateNavigator({ dateString }: { dateString: string }) {
         const params = new URLSearchParams(searchParams.toString())
         params.set("date", format(date, "yyyy-MM-dd"))
         router.push(`/search?${params.toString()}`)
+        setIsOpen(false)
     }
 
     const handleNextDay = () => {
@@ -52,7 +55,7 @@ export function DateNavigator({ dateString }: { dateString: string }) {
             </Button>
 
             <div className="flex items-center gap-2">
-                <Popover>
+                <Popover open={isOpen} onOpenChange={setIsOpen}>
                     <PopoverTrigger asChild>
                         <Button
                             variant={"outline"}
@@ -65,12 +68,19 @@ export function DateNavigator({ dateString }: { dateString: string }) {
                             {currentDate ? format(currentDate, "PPP") : <span>Pick a date</span>}
                         </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="center">
+                    <PopoverContent className="w-auto p-0 border-blue-100" align="center">
                         <Calendar
                             mode="single"
                             selected={currentDate}
                             onSelect={handleDateChange}
                             disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                            className="p-3"
+                            classNames={{
+                                day: "h-12 w-12 text-lg font-medium hover:bg-blue-50 hover:text-blue-600 rounded-md",
+                                day_selected: "bg-blue-600 text-white hover:bg-blue-700 hover:text-white focus:bg-blue-600 focus:text-white",
+                                head_cell: "w-12 text-blue-800 font-normal text-base",
+                                caption: "flex justify-center pt-1 relative items-center mb-2 text-lg font-medium text-blue-900",
+                            }}
                             initialFocus
                         />
                     </PopoverContent>

@@ -1,9 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { useFlightSearch } from "@/hooks/use-flight-search"
 import { FlightCard } from "@/components/features/flight-card"
+import { BookingSummary } from "@/components/features/booking-summary"
 import { PriceChart } from "@/components/features/price-chart"
 import { DateNavigator } from "@/components/features/date-navigator"
 import { FilterSidebar } from "@/components/features/filter-sidebar"
@@ -137,9 +138,23 @@ function SearchPageContent() {
     }, [filteredFlights])
 
     // Mix-and-match State
+    const router = useRouter();
     const isRoundTrip = !!returnDate;
     const [step, setStep] = useState<'outbound' | 'return'>('outbound');
     const [selectedOutbound, setSelectedOutbound] = useState<any>(null);
+    const [selectedReturn, setSelectedReturn] = useState<any>(null);
+
+    const handleCheckout = () => {
+        if (!selectedOutbound) return;
+
+        const bookingData = {
+            outbound: selectedOutbound,
+            returnFlight: selectedReturn,
+            dictionaries: data?.dictionaries
+        };
+        sessionStorage.setItem('bookingData', JSON.stringify(bookingData));
+        router.push('/checkout');
+    };
 
     // 1. Group by unique Outbound legs (same carrier, flight number, departure time)
     const uniqueOutbounds = useMemo(() => {
@@ -188,10 +203,16 @@ function SearchPageContent() {
 
                         <div className="hidden md:flex items-center space-x-2 text-sm text-slate-400 border-l border-slate-700 pl-6 h-6">
                             <span className="font-medium text-slate-200">{origin}</span>
-                            <span>→</span>
+                            <span>{returnDate ? "↔" : "→"}</span>
                             <span className="font-medium text-slate-200">{destination}</span>
                             <span className="mx-2">•</span>
                             <span>{date}</span>
+                            {returnDate && (
+                                <>
+                                    <span className="mx-1">-</span>
+                                    <span>{returnDate}</span>
+                                </>
+                            )}
                             <span className="mx-2">•</span>
                             <span>{adults} Pax</span>
                         </div>
@@ -215,7 +236,7 @@ function SearchPageContent() {
                                         <DrawerTitle>Filters</DrawerTitle>
                                         <DrawerDescription>Adjust your search criteria.</DrawerDescription>
                                     </DrawerHeader>
-                                    <div className="p-4">
+                                    <div className="p-4 overflow-y-auto max-h-[75vh]">
                                         <FilterSidebar
                                             maxPrice={maxPriceLimit}
                                             priceRange={priceRange}
@@ -239,9 +260,12 @@ function SearchPageContent() {
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto p-4 md:p-8 flex flex-col md:flex-row gap-8">
-                {/* Desktop Sidebar Filters */}
-                <aside className="w-full md:w-64 flex-shrink-0 space-y-6 hidden md:block sticky top-24 h-fit">
+            <main className={cn(
+                "max-w-[90rem] mx-auto p-4 md:p-8 grid grid-cols-1 gap-8 items-start relative transition-all duration-1000 ease-[cubic-bezier(0.25,0.1,0.25,1.0)]",
+                selectedOutbound ? "md:grid-cols-[16rem_1fr_24rem]" : "md:grid-cols-[16rem_1fr]"
+            )}>
+                {/* Desktop Sidebar Filters (Col 1) */}
+                <aside className="space-y-6 hidden md:block sticky top-24 h-fit">
                     <FilterSidebar
                         maxPrice={maxPriceLimit}
                         priceRange={priceRange}
@@ -254,8 +278,8 @@ function SearchPageContent() {
                     />
                 </aside>
 
-                {/* Main Content */}
-                <section className="flex-1 min-w-0">
+                {/* Main Content (Col 2) */}
+                <section className="min-w-0 flex flex-col pb-64 md:pb-0">
                     {/* Date Navigator */}
                     {date && (
                         <DateNavigator dateString={date} />
@@ -303,12 +327,13 @@ function SearchPageContent() {
                             </div>
 
                             {!isRoundTrip ? (
-                                // One-way rendering
+                                // One-way rendering with Selection
                                 filteredFlights.map((flight) => (
                                     <FlightCard
                                         key={flight.id}
                                         flight={flight}
                                         dictionaries={data.dictionaries}
+                                        onSelect={() => setSelectedOutbound(flight)}
                                     />
                                 ))
                             ) : (
@@ -375,11 +400,23 @@ function SearchPageContent() {
                                                 )}>
                                                     Return
                                                 </span>
+                                                {selectedReturn && <span className="text-purple-600"><CheckCircle2 className="h-5 w-5" /></span>}
                                             </div>
 
                                             {(!selectedOutbound && step !== 'return') ? (
                                                 <div className="py-2">
                                                     <p className="text-slate-400 font-medium italic">Select outbound first</p>
+                                                </div>
+                                            ) : selectedReturn ? (
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="font-bold text-slate-900 text-lg">{format(parseISO(selectedReturn.itineraries[0].segments[0].departure.at), "HH:mm")}</span>
+                                                        <span className="text-slate-400">→</span>
+                                                        <span className="font-bold text-slate-900 text-lg">{format(parseISO(selectedReturn.itineraries[0].segments[selectedReturn.itineraries[0].segments.length - 1].arrival.at), "HH:mm")}</span>
+                                                    </div>
+                                                    <p className="text-sm text-slate-600 font-medium">
+                                                        {data.dictionaries.carriers[selectedReturn.itineraries[0].segments[0].carrierCode]} • {format(parseISO(selectedReturn.itineraries[0].segments[0].departure.at), "EEE, d MMM")}
+                                                    </p>
                                                 </div>
                                             ) : (
                                                 <div className="py-2">
@@ -402,6 +439,7 @@ function SearchPageContent() {
                                                     step="outbound"
                                                     onSelect={() => {
                                                         setSelectedOutbound(flight);
+                                                        setSelectedReturn(null); // Reset return if outbound changes
                                                         setStep('return');
                                                         window.scrollTo({ top: 0, behavior: 'smooth' });
                                                     }}
@@ -424,7 +462,7 @@ function SearchPageContent() {
                                                     isMultiStep={true}
                                                     step="return"
                                                     onSelect={() => {
-                                                        alert(`Flight Selected! Total: ${flight.price.total}`);
+                                                        setSelectedReturn(flight);
                                                     }}
                                                 />
                                             ))}
@@ -455,6 +493,18 @@ function SearchPageContent() {
                         </div>
                     )}
                 </section>
+
+                {/* Third Column: Booking Summary (Desktop Sticky) */}
+                {selectedOutbound && (
+                    <div className="md:sticky md:top-24 md:h-fit z-30">
+                        <BookingSummary
+                            outbound={selectedOutbound}
+                            returnFlight={selectedReturn}
+                            dictionaries={data?.dictionaries || { carriers: {}, aircraft: {}, currencies: {}, location: {} }}
+                            onCheckout={handleCheckout}
+                        />
+                    </div>
+                )}
             </main>
         </div>
     )

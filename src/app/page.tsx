@@ -16,7 +16,7 @@ export default function Home() {
             <span className="text-red-500">Not</span> Google Flights
           </h1>
           <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-            Experience the future of flight search. Immersive, fast, and beautiful.
+            Because teleportation is still in beta.
           </p>
         </div>
 
