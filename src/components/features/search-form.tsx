@@ -34,7 +34,7 @@ const formSchema = z.object({
     destination: z.string().length(3, "Must be a 3-letter IATA code").regex(/^[A-Z]{3}$/, "Must be uppercase IATA code"),
     date: z.date(),
     returnDate: z.date().optional(),
-    adults: z.string().default("1"),
+    adults: z.string(),
 })
 
 export function SearchForm() {
