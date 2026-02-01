@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Flight Search Engine ("Not Google Flights")
 
-## Getting Started
+A modern, performant, and aesthetically refined flight search engine built with the latest React ecosystem.
 
-First, run the development server:
+## 🚀 About the Project
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+This project is not just a pretty interface; it is a **Full-Stack** (BFF) application that consumes real global aviation data. It demonstrates how to build complex, responsive interfaces that securely and efficiently connect to enterprise APIs.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Key Features
+*   **Real-Time Search**: Connected to the Amadeus API to fetch real flights.
+*   **Smart Autocomplete**: Validation and suggestion of cities/airports (IATA codes).
+*   **Advanced Filters**:
+    *   Price (Double slider for Min/Max).
+    *   Stops (Direct, 1 stop, 2+).
+    *   Airlines (Dynamic selection).
+*   **Premium Design**: Immersive interface with smooth animations, complex gradients, and theme support.
+*   **Data Visualization**: Price trend charts and visual route details.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🛠️ Technical Decisions & Architecture
 
-## Learn More
+This project follows a **Backend-for-Frontend (BFF)** architecture using Next.js App Router.
 
-To learn more about Next.js, take a look at the following resources:
+### 1. Core & Framework
+*   **Next.js 16 (App Router)**: Chosen for its ability to render Server Components (RSC), ensuring instant initial load and better SEO.
+*   **Route Handlers (`/api/`)**: All requests to the Amadeus API pass through our own backend.
+    *   *Why?* To protect secret API keys (`AMADEUS_CLIENT_SECRET`) and implement OAuth2 token caching on the server, reducing latency and costs.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 2. Interface & UX
+*   **Tailwind CSS v4**: Used for rapid and performant styling with a custom Design System (`src/app/globals.css`).
+*   **Shadcn/UI & Radix UI**: Accessible (keyboard, screen readers) and fully customizable components. The component code lives within the project, allowing for precise adaptations (e.g., Slider with multiple thumbs).
+*   **Lucide React**: Consistent and lightweight iconography.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. Data Management
+*   **React Query (@tanstack/react-query)**: Manages server state on the client. Responsible for caching, revalidation, and handling `loading`/`error` states in flight search.
+*   **Zod**: "Full-Stack" schema validation. Ensures that data sent by the form (e.g., 3-letter IATA codes) and received from the API are in the correct format.
 
-## Deploy on Vercel
+### 4. Integrations
+*   **Amadeus Self-Service API (v2)**: Official data source for flights, schedules, and prices.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 📦 How to Run Locally
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/your-username/flight-search.git
+    cd flight-search
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
+
+3.  **Configure Environment Variables**:
+    Create a `.env.local` file in the root and add your Amadeus credentials:
+    ```env
+    AMADEUS_CLIENT_ID=your_client_id
+    AMADEUS_CLIENT_SECRET=your_client_secret
+    ```
+
+4.  **Run the development server**:
+    ```bash
+    npm run dev
+    ```
+
+5.  Open [http://localhost:3000](http://localhost:3000).
+
+---
+
+## 📄 License
+
+This project is open source and available under the [MIT](LICENSE) license.
